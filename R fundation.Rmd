@@ -1,0 +1,103 @@
+---
+title: "R fundation"
+author: "Kindle Zhang qz2527"
+date: "2024-12-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+library(tidyverse)
+# chooseBioCmirror()
+```
+
+```{r}
+getwd()
+# setwd("data_file")
+# setwd("./bioinformatics")
+```
+
+```{r read}
+c = read.table(
+  "x.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = FALSE,
+  stringAsFactors = FALSE,
+  header = TRUE
+)
+a = c
+
+write.table(
+  a,
+  "a.txt",
+  sep = "\t",
+  row_names = TRUE,
+  col.names = NA,
+  quote = FALSE
+)
+
+write.csv(a, file = "a.csv")
+write.csv(a, file = "b.csv")
+
+d = read.csv("a.csv", row.names = 1)
+```
+
+```{r operate}
+x = t(x)
+x = as.data.frame(x)
+class(x)
+class(x$col)
+
+substr("zhangqiduo", 1, 4)
+set = c("a", "b", "c")
+set
+
+q = x[, 1:3]
+p = x[1:3, ]
+r = x[1:3, 5:10]
+s = x[-1, ]
+t = x[, -1]
+u = x[, -(2:4)]
+v = x[, -c(1, 3)]
+
+x = x |>
+  t() |>
+  as.data.frame()
+```
+
+```{r}
+a = c("a", "b", "a", "b", "c")
+duplicated(a)
+a = a[!duplicated(a)]
+a
+```
+```{r join} 
+class1 = tribble(~ 'num',
+                 ~ 'name',
+                 'first',
+                 'wang',
+                 'second',
+                 'zhang',
+                 'third',
+                 'li')
+class2 = tribble(~ 'num',
+                 ~ 'name',
+                 'first',
+                 'hu',
+                 'second',
+                 'liu',
+                 'fourth',
+                 'yu')
+class3 = tribble(~ 'num',  ~ 'name',  ~ '哈哈',
+                 '第一名', '胡某人',
+                 '第二名', '刘周人',
+                 '第四名', '于某人')
+inner_join(class1, class2, by = 'num')
+left_join(class1,class2,by='num')
+right_join(class1,class2,by='num')
+```
+
+

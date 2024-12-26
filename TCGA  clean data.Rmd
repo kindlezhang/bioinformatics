@@ -1,0 +1,228 @@
+---
+title: "TCGA clean data"
+author: "Kindle Zhang qz2527"
+date: "2024-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+setwd("./TCGA-LUAD/TCGAdata")
+library(tidyverse)
+library(BiocManager)
+```
+
+```{r}
+# BiocManager::install("BioinformaticsFMRP/TCGAbiolinksGUI.data")
+# BiocManager::install("remotes")
+# BiocManager::install("ExperimentHub")
+# BiocManager::install("BioinformaticsFMRP/TCGAbiolinks")
+```
+
+```{r}
+library(TCGAbiolinks)
+cancer_type = "TCGA-LUAD"
+#TCGA abbreviation：https://www.jianshu.com/p/3c0f74e85825
+# ready to download 
+expquery = GDCquery(
+  project = cancer_type,
+  data.category = "Transcriptome Profiling",
+  data.type = "Gene Expression Quantification",
+  workflow.type = "STAR - Counts"
+)
+# start to download in working place
+GDCdownload(expquery, directory = "GDCdata")
+# transform 
+expquery2 = GDCprepare(expquery,
+                       directory = "GDCdata",
+                       summarizedExperiment = T)
+# save rda
+save(expquery2, file = "luad.gdc_2022.rda")
+```
+
+```{r}
+load("luad.gdc_2022.rda") # import
+load("gene_annotation_2022.rda") # annotation
+table(gene_annotation_2022$type) # 
+
+# col = observation row = gene
+counts = expquery2@assays@data@listData[["unstranded"]] # integer
+colnames(counts) = expquery2@colData@rownames
+rownames(counts) = expquery2@rowRanges@ranges@NAMES
+
+# transfer row names to gene name
+counts = counts |>
+  as.data.frame() |>
+  rownames_to_column(var = "ENSEMBL") |>
+  inner_join(gene_annotation_2022, "ENSEMBL") |>
+  # .[!duplicated(.$symbol), ]
+  distinct(symbol, .keep_all = TRUE)
+
+counts1 = expquery2@assays@data@listData[["unstranded"]]
+colnames(counts1) = expquery2@colData@rownames
+rownames(counts1) = expquery2@rowRanges@ranges@NAMES
+counts1 = as.data.frame(counts1)
+counts1 = rownames_to_column(counts1, var = 'ENSEMBL')
+counts1 = inner_join(counts1, gene_annotation_2022, "ENSEMBL")
+counts1 = counts1[!duplicated(counts1$symbol), ]
+```
+
+```{r}
+a = c("a", "b", "a", "b", "c")
+b = c("a", "b", "b", "a", "c")
+identical(a, b) # sequence also works
+identical(colnames(counts), colnames(counts1))
+identical(rownames(counts), rownames(counts1))
+
+rownames(counts) = NULL
+counts = counts |>  column_to_rownames("symbol") 
+
+rownames(counts1) = NULL 
+counts1 = column_to_rownames(counts1,var = 'symbol')
+
+table(counts$type)
+counts = counts[counts$type == "protein_coding", ]
+#counts = counts[counts$type == "lncRNA",]
+counts = counts[, -c(1, ncol(counts))]
+ncol(counts)
+nrow(counts)
+
+colnames(counts) = substring(colnames(counts), 1, 16)
+counts = counts[, !duplicated(colnames(counts))]
+table(substring(colnames(counts), 14, 16)) # 01A 肿瘤样本 11A 正常样本
+# retain 01A
+counts01A =
+  counts[, substring(colnames(counts), 14, 16) == c("01A")]
+# retain 11A
+counts11A =
+  counts[, substring(colnames(counts), 14, 16) == c("11A")]
+table(substring(colnames(counts01A), 14, 16))
+table(substring(colnames(counts11A), 14, 16))
+```
+
+```{r tpms}
+# TCGA 中counts只做差异分析
+tpms <- expquery2@assays@data@listData[["tpm_unstrand"]]
+colnames(tpms) <- expquery2@colData@rownames
+rownames(tpms) <- expquery2@rowRanges@ranges@NAMES
+tpms <- tpms %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ENSEMBL") %>% 
+  inner_join(gene_annotation_2022,"ENSEMBL") %>% 
+  .[!duplicated(.$symbol),]
+rownames(tpms) <- NULL
+tpms <- tpms %>% column_to_rownames("symbol") 
+# 保留mRNA （注：可通过table(tpms$type)查看基因类型）
+tpms <- tpms[tpms$type == "protein_coding",]
+tpms <- tpms[,-c(1,ncol(tpms))]
+# 把TCGA barcode切割为16位字符,并去除重复样本
+colnames(tpms) <- substring(colnames(tpms),1,16)
+tpms <- tpms[,!duplicated(colnames(tpms))]
+# 保留01A  （注：可通过table(substring(colnames(tpms),14,16))查看样本类型）
+tpms01A <- tpms[,substring(colnames(tpms),14,16) == c("01A")]
+# 保留11A
+tpms11A <- tpms[,substring(colnames(tpms),14,16) == c("11A")]
+```
+
+```{r}
+identical(rownames(counts01A),rownames(counts11A))
+identical(rownames(tpms01A),rownames(tpms11A))
+identical(rownames(counts01A),rownames(tpms01A))
+identical(colnames(counts01A),colnames(tpms01A))
+identical(colnames(counts11A),colnames(tpms11A))
+
+# write.table(
+#   counts01A,
+#   "counts01A.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+# write.table(
+#   counts11A,
+#   "counts11A.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+# write.table(
+#   tpms01A,
+#   "tpms01A.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+# write.table(
+#   tpms11A,
+#   "tpms11A.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+```
+
+```{r}
+counts <- cbind(counts01A, counts11A)
+tpms <- cbind(tpms01A, tpms11A)
+# write.table(
+#   counts,
+#   "counts.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+# write.table(
+#   tpms,
+#   "tpms.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+```
+
+```{r}
+range(tpms)
+range(tpms01A)
+range(tpms11A)
+tpms_log2 = log2(tpms+1)
+range(tpms_log2)
+tpms01A_log2 = log2(tpms01A+1)
+range(tpms01A_log2)
+tpms11A_log2 = log2(tpms11A+1)
+range(tpms11A_log2)
+
+# write.table(
+#   tpms_log2,
+#   "tpms_log2.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+# write.table(
+#   tpms01A_log2,
+#   "tpms01A_log2.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+# write.table(
+#   tpms11A_log2,
+#   "tpms11A_log2.txt",
+#   sep = "\t",
+#   row.names = T,
+#   col.names = NA,
+#   quote = F
+# )
+#表达谱整理完毕
+```
+
