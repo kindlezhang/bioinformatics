@@ -9,7 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
-setwd("./TCGA-LUAD/TCGAdata")
+# getwd()
+# setwd("./datafile")
 library(tidyverse)
 library(BiocManager)
 ```
@@ -25,6 +26,7 @@ library(BiocManager)
 library(TCGAbiolinks)
 cancer_type = "TCGA-LUAD"
 #TCGA abbreviation：https://www.jianshu.com/p/3c0f74e85825
+
 # ready to download 
 expquery = GDCquery(
   project = cancer_type,
@@ -32,12 +34,15 @@ expquery = GDCquery(
   data.type = "Gene Expression Quantification",
   workflow.type = "STAR - Counts"
 )
+
 # start to download in working place
 GDCdownload(expquery, directory = "GDCdata")
+
 # transform 
 expquery2 = GDCprepare(expquery,
                        directory = "GDCdata",
                        summarizedExperiment = T)
+
 # save rda
 save(expquery2, file = "luad.gdc_2022.rda")
 ```
