@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
 # getwd()
-# setwd("./datafile")
+setwd("./datafile")
 library(tidyverse)
 library(BiocManager)
 ```
@@ -44,7 +44,7 @@ expquery2 = GDCprepare(expquery,
                        summarizedExperiment = T)
 
 # save rda
-save(expquery2, file = "luad.gdc_2022.rda")
+save(expquery2, file = "../datafile/luad.gdc_2022.rda")
 ```
 
 ```{r}
