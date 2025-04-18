@@ -1,0 +1,22 @@
+---
+title: "LUDA analysis"
+author: "Kindle Zhang qz2527"
+date: "2024-11-19"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+setwd("./TCGA-LUAD/TCGAdata")
+library(tidyverse)
+library(BiocManager)
+```
+
+```{r}
+BiocManager::install("BioinformaticsFMRP/TCGAbiolinksGUI.data")
+# BiocManager::install("remotes")
+# BiocManager::install("ExperimentHub")
+# BiocManager::install("BioinformaticsFMRP/TCGAbiolinks")
+```
