@@ -2,27 +2,24 @@
 title: "TCGA LUDA clinical"
 author: "Kindle Zhang qz2527"
 date: "2024-12-20"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
-setwd("../Estimate")
+# setwd("./data_file")
 library(tidyverse)
 library(BiocManager)
 ```
 
 ```{r}
-setwd("TCGA-LUAD")
-setwd("clinical")
-library(tidyverse)
-load("luad.gdc_2022.rda")
+load("./data_file/luad.gdc_2022.rda")
 
 # 随着肿瘤分期的进展
-clinical <- as.data.frame(expquery2@colData) %>%
-  .[!duplicated(.$sample), ]
+clinical <- as.data.frame(expquery2@colData)  # extract clinical data
+clinical = clinical[!duplicated(clinical$sample), ]
 
 clinical <-
   clinical[, c(
@@ -33,6 +30,8 @@ clinical <-
     "ajcc_pathologic_n",
     "ajcc_pathologic_m"
   )]
+
+# stage means tumor stage, t 原发肿瘤大小或范围, n 区域淋巴结受累情况 ，m 远处转移。
 
 class(clinical$gender)
 class(clinical$age_at_index)
@@ -68,7 +67,7 @@ rownames(clinical) <- substring(rownames(clinical),1,16)
 ##将基因表达谱和临床数据合并并保存
 exp01A <-
   read.table(
-    "tpms01A_log2.txt",
+    "./data_file/tpms01A_log2.txt",
     sep = "\t",
     row.names = 1,
     check.names = F,
@@ -77,13 +76,13 @@ exp01A <-
   )
 
 clinical01A <- clinical[colnames(exp01A), ]
-exp01A <- exp01A %>% t() %>% as.data.frame()
+exp01A <- exp01A  |>  t()  |>  as.data.frame()
 identical(rownames(clinical01A),rownames(exp01A))
-clinical.expr01A <- cbind(clinical01A,exp01A)
+clinical.expr01A <- cbind(clinical01A, exp01A)
 
 # write.table(
 #   clinical.expr01A,
-#   "clinical.expr01A.txt",
+#   "./data_file/clinical.expr01A.txt",
 #   sep = "\t",
 #   row.names = T,
 #   col.names = NA,
@@ -92,7 +91,7 @@ clinical.expr01A <- cbind(clinical01A,exp01A)
 
 ESTIMATE_result <-
   read.table(
-    "ESTIMATE_result.txt",
+    "./data_file/ESTIMATE_result.txt",
     sep = "\t",
     row.names = 1,
     check.names = F,
@@ -103,8 +102,36 @@ identical(rownames(clinical01A), rownames(ESTIMATE_result))
 
 clinical.ESTIMATE_result01A <- cbind(clinical01A, ESTIMATE_result)
 
-# write.csv(clinical.ESTIMATE_result01A, file = "clinical.ESTIMATE_result01A.csv")
-
-
+# write.csv(clinical.ESTIMATE_result01A, 
+# file = "./data_file/clinical.ESTIMATE_result01A.csv")
 ```
 
+We can get a data combined with estimate score and clinical data. 
+
+```{r}
+clinical.ESTIMATE_result01A |>
+  filter(!is.na(ajcc_pathologic_stage)) |> 
+  ggplot(aes(x = ajcc_pathologic_stage,
+             y = ImmuneScore,
+             fill = ajcc_pathologic_stage)) +
+  geom_boxplot() +
+  labs(title = "Stage",
+       y = "Immune Score") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    legend.position = NULL
+  )
+```
+
+calculate p-value
+
+```{r}
+test = 
+clinical.ESTIMATE_result01A |>
+  filter(!is.na(ajcc_pathologic_stage)) |>
+  mutate(ajcc_pathologic_stage = as.factor(ajcc_pathologic_stage)) %>%  
+  kruskal.test(ImmuneScore ~ ajcc_pathologic_stage)
+  
+test
+```
