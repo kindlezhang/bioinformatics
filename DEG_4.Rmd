@@ -1,0 +1,246 @@
+---
+title: "Differentially Expressed Gene"
+author: "Kindle Zhang qz2527"
+date: "2024-12-20"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+# setwd("./data_file")
+library(tidyverse)
+library(BiocManager)
+```
+
+# import data
+
+use counts data with 01A
+
+```{r}
+# BiocManager::install('DESeq2')
+library(DESeq2)
+counts_01A <-
+  read.table(
+    "./data_file/counts01A.txt",
+    sep = "\t",
+    row.names = 1,
+    check.names = F,
+    stringsAsFactors = F,
+    header = T
+  )
+estimate <-
+  read.table(
+    "./data_file/ESTIMATE_result.txt",
+    sep = "\t",
+    row.names = 1,
+    check.names = F,
+    header = T
+  )
+```
+
+# ImmuneScore difference score
+
+```{r}
+# get a table with genes name and their ImmuneScore group
+x <- "ImmuneScore"
+med <- as.numeric(median(estimate[, x]))
+estimate <- as.data.frame(t(estimate))
+if (identical(colnames(counts_01A), colnames(estimate))) {
+  conditions <-
+    data.frame(
+      sample = colnames(counts_01A),
+      group = factor(ifelse(estimate[x, ] > med, "high", "low"),
+        levels = c("low", "high")
+      )
+    ) |>
+    column_to_rownames("sample")
+} else {
+  cat("colnames are different")
+}
+
+# prepare to make a difference analysis
+dds <- DESeqDataSetFromMatrix(
+  countData = counts_01A,
+  colData = conditions,
+  design = ~group
+)
+
+# start to make a difference analysis
+dds <- DESeq(dds)
+resultsNames(dds)
+
+# get result
+res <- results(dds)
+# save(res, file = "./data_file/DEG_ImmuneScore.Rda")
+```
+
+plot heatmap
+
+```{r}
+DEG <- as.data.frame(res)
+head(DEG)
+# log2FoldChange 正的代表在high组里面高表达
+
+# read expression spectrum (tpms)
+exp <- read.table(
+  "./data_file/tpms01A_log2.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = F,
+  stringsAsFactors = F,
+  header = T
+)
+
+# define the cutoff value
+# 找到高表达和低表达的基因，并且需要显著
+logFC_cutoff <- 1
+type1 <- (DEG$padj < 0.05) & (DEG$log2FoldChange < -logFC_cutoff)
+type2 <- (DEG$padj < 0.05) & (DEG$log2FoldChange > logFC_cutoff)
+DEG$change <- ifelse(type1, "DOWN", ifelse(type2, "UP", "NOT"))
+table(DEG$change)
+head(DEG)
+
+# install.packages("pheatmap")
+library(pheatmap)
+# extract different genes' expression spectrum
+a <- filter(DEG, change == "UP")
+b <- filter(DEG, change == "DOWN")
+c <- rbind(a, b)
+d <- rownames(c)
+exp_diff <- exp[d, ] # 找出DEG分析以后，up和down的基因的tpms表达谱，并分别聚类在一起
+
+# set group information
+annotation_col <- conditions
+# adjust the sequence of sample
+# 再在这个tpms表达谱中，找到immuneScore高和低的样本，将他们分类成两份
+a <- filter(annotation_col, group == "high")
+b <- filter(annotation_col, group == "low")
+exp_diff_high <- exp_diff[, rownames(a)]
+exp_diff_low <- exp_diff[, rownames(b)]
+exp_diff <- cbind(exp_diff_high, exp_diff_low)
+
+# plot heatmap
+pheatmap(
+  exp_diff,
+  annotation_col = annotation_col,
+  scale = "row",
+  show_rownames = F,
+  show_colnames = F,
+  color = colorRampPalette(c("navy", "white", "red"))(50),
+  cluster_cols = F,
+  cluster_rows = T, # 对行进行聚类
+  fontsize = 10,
+  fontsize_row = 2,
+  fontsize_col = 2
+)
+# dev.off()
+```
+
+we can get a plot approximately  divided in four parts.
+
+# StromalScore difference score
+
+```{r}
+counts_01A <-
+  read.table(
+    "./data_file/counts01A.txt",
+    sep = "\t",
+    row.names = 1,
+    check.names = F,
+    stringsAsFactors = F,
+    header = T
+  )
+estimate <-
+  read.table(
+    "./data_file/ESTIMATE_result.txt",
+    sep = "\t",
+    row.names = 1,
+    check.names = F,
+    header = T
+  )
+```
+
+```{r}
+x <- "StromalScore"
+med <- as.numeric(median(estimate[, x]))
+estimate <- as.data.frame(t(estimate))
+if (identical(colnames(counts_01A), colnames(estimate))) {
+  conditions <- data.frame(
+    sample = colnames(counts_01A),
+    group = factor(ifelse(estimate[x, ] > med, "high", "low"), levels = c("low", "high"))
+  ) |> column_to_rownames("sample")
+} else {
+  cat("colnames are different")
+}
+# prepare to make a difference analysis
+dds <- DESeqDataSetFromMatrix(
+  countData = counts_01A,
+  colData = conditions,
+  design = ~group
+)
+# start to make a difference analysis
+dds <- DESeq(dds)
+resultsNames(dds)
+
+# get result
+res <- results(dds)
+# save(res, file = "./data_file/DEG_StromalScore.Rda")
+```
+
+plot heatmap
+
+```{r}
+DEG = as.data.frame(res)
+# read expression spectrum (tpms)
+exp = read.table(
+  "./data_file/tpms01A_log2.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = F,
+  stringsAsFactors = F,
+  header = T
+)
+# define the cutoff value
+logFC_cutoff = 1
+type1 = (DEG$padj < 0.05)&(DEG$log2FoldChange < -logFC_cutoff)
+type2 = (DEG$padj < 0.05)&(DEG$log2FoldChange > logFC_cutoff)
+DEG$change = ifelse(type1,"DOWN",ifelse(type2,"UP","NOT"))
+table(DEG$change)
+
+# extract different genes' expression spectrum
+a = filter(DEG, change == 'UP')
+b = filter(DEG, change == 'DOWN')
+c = rbind(a, b)
+d = rownames(c)
+exp_diff = exp[d, ]
+
+# set group information
+annotation_col = conditions
+# adjust the sequence of sample
+a = filter(annotation_col, group == 'high')
+b = filter(annotation_col, group == 'low')
+exp_diff_high = exp_diff[, rownames(a)]
+exp_diff_low = exp_diff[, rownames(b)]
+exp_diff = cbind(exp_diff_high, exp_diff_low)
+
+# plot heatmap
+pheatmap(
+  exp_diff,
+  annotation_col = annotation_col,
+  scale = "row",
+  show_rownames = F,
+  show_colnames = F,
+  color = colorRampPalette(c("navy", "white", "red"))(50),
+  cluster_cols = F,
+  cluster_rows = T,
+  fontsize = 10,
+  fontsize_row = 2,
+  fontsize_col = 2
+)
+# dev.off()
+```
+
