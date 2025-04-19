@@ -188,7 +188,7 @@ forestplot(
 # select the intersection gene in protein interaction and survival analysis
 
 ```{r}
-# gene_sig = Coxoutput[Coxoutput$pvalue < 0.001, ]
+gene_sig = Coxoutput[Coxoutput$pvalue < 0.005, ]
 
 jco_colors = pal_jco("default")(2)
 

@@ -1,0 +1,62 @@
+---
+title: "F2 gene expression difference between two groups"
+author: "Kindle Zhang qz2527"
+date: "2024-12-20"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+# setwd("./data_file")
+library(tidyverse)
+library(BiocManager)
+```
+
+We select "F2" gene to make a further study
+
+# gene F2 expression difference in cancer and no cancer samples
+
+boxplot in different samples
+
+```{r}
+tpms01A_log2 = read.table(
+  "./data_file/tpms01A_log2.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = F,
+  stringsAsFactors = F,
+  header = T
+)
+tpms11A_log2 = read.table(
+  "./data_file/tpms11A_log2.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = F,
+  stringsAsFactors = F,
+  header = T
+)
+gene = "BTK"
+a = tpms01A_log2[gene, ]
+b = tpms11A_log2[gene, ]
+a = a |>  t() |>  as.data.frame()
+b = b |>  t() |>  as.data.frame()
+# write.csv(a, file = "./data_file/F2_01A.csv")
+# write.csv(b, file = "./data_file/F2_11A.csv")
+a = a |>
+  mutate(group = "tumor")
+rownames(a) = NULL
+
+b = b |>
+  mutate(group = "normal")
+rownames(b) = NULL
+final = rbind(b, a)
+
+final |> ggplot(aes(x = group, y = F2)) + 
+  geom_boxplot() + 
+  theme_classic() + 
+  labs(title = "F2 expression(TPMS_log2)", x = "group", y = "F2")
+```
