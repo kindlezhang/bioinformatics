@@ -1028,7 +1028,7 @@ tabletext = cbind(
 )
 ```
 
-```{r}
+```{r }
 # plot forest
 forestplot(
   labeltext = tabletext,

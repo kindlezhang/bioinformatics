@@ -1,0 +1,208 @@
+---
+title: "PPI"
+author: "Kindle Zhang qz2527"
+date: "2024-12-20"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+# setwd("./data_file")
+library(tidyverse)
+library(BiocManager)
+library(ggsci)
+library(VennDiagram)
+```
+
+# PPI (protein and protein interaction)
+
+使用DEG中的基因进一步做PPI
+
+```{r}
+# String：https://cn.string-db.org/cgi/input?sessionId=bXmYsv7CnUrH&input_page_active_form=multiple_identifiers
+# download the TSV file and use a Cytoscape to plot 
+
+data_PPI =
+  read_csv("./data_file/string_interactions_short_tsv_default_node.csv")
+
+data_PPI =
+  data_PPI |> select(name, Degree) |>
+  janitor::clean_names() |>
+  arrange(desc(degree))
+
+# plot the most influential protein mRNA and the # of their connections
+
+data_PPI[1:30,] |>
+  ggplot(aes(x = fct_reorder(name, degree), y = degree)) + geom_col() +
+  coord_flip() + 
+  theme_minimal() +
+  labs(title = "Degree Distribution",
+       x = "Name",
+       y = "Degree") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+# CD4 is the hub gene
+```
+
+#  COX with intersection different genes
+
+使用DEG中的基因再做一次单因素COX回归分析
+
+```{r}
+library(survival)
+# install.packages("forestplot")
+library(forestplot)
+exp_surv_01A = read.table(
+  "./data_file/exp_surv_01A.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = F,
+  stringsAsFactors = F,
+  header = T
+)
+
+DEG_final <- read.table(
+    "./data_file/DEG_final.txt", 
+    header = TRUE, 
+    sep = "\t", 
+    stringsAsFactors = FALSE)
+
+
+surv.expr = cbind(exp_surv_01A[, 1:2], exp_surv_01A[, DEG_final$SYMBOL]) # row是样本，col是生存信息和DEG中的基因，cell是tpms表达量
+colnames(surv.expr)[1] = "censor" 
+```
+
+```{r}
+Coxoutput = NULL
+
+for (i in 3:ncol(surv.expr)) {
+  g = colnames(surv.expr)[i]
+  cox =
+    coxph(Surv(OS.time, censor) ~ surv.expr[, i], data = surv.expr) # univariate model
+  coxSummary = summary(cox)
+  
+  Coxoutput = rbind.data.frame(
+    Coxoutput,
+    data.frame(
+      gene = g,
+      HR = as.numeric(coxSummary$coefficients[, "exp(coef)"])[1],
+      z = as.numeric(coxSummary$coefficients[, "z"])[1],
+      pvalue = as.numeric(coxSummary$coefficients[, "Pr(>|z|)"])[1],
+      lower = as.numeric(coxSummary$conf.int[, 3][1]),
+      upper = as.numeric(coxSummary$conf.int[, 4][1]),
+      stringsAsFactors = F
+    ),
+    stringsAsFactors = F
+  )
+}
+
+Coxoutput = arrange(Coxoutput, pvalue)
+
+# select the top genes
+gene_sig = Coxoutput[Coxoutput$pvalue < 0.001, ] # if 0.05, there are too many genes to consider
+# write.csv(gene_sig, file = "./data_file/gene_sig.csv")
+topgene = gene_sig
+```
+
+# plot the forest plot
+
+```{r}
+# make the form first
+tabletext = cbind(
+  c("Gene", topgene$gene),
+  c("HR", format(round(
+    as.numeric(topgene$HR), 3
+  ), nsmall = 3)),
+  c("lower 95%CI", format(round(
+    as.numeric(topgene$lower), 3
+  ), nsmall = 3)),
+  c("upper 95%CI", format(round(
+    as.numeric(topgene$upper), 3
+  ), nsmall = 3)),
+  c("pvalue", format(round(
+    as.numeric(topgene$p), 3
+  ), nsmall = 3))
+)
+```
+
+```{r fig.width=18, fig.height=6}
+# plot forest
+forestplot(
+  labeltext = tabletext,
+  mean = c(NA, as.numeric(topgene$HR)),
+  lower = c(NA, as.numeric(topgene$lower)),
+  upper = c(NA, as.numeric(topgene$upper)),
+  graph.pos = 6,
+  # 图在表中的列位置
+  graphwidth = unit(.75, "npc"),
+  # 图在表中的宽度比
+  fn.ci_norm = "fpDrawDiamondCI",
+  # box类型选择钻石
+  col = fpColors(
+    box = "#00A896",
+    lines = "#02C39A",
+    zero = "black"
+  ),
+  # box颜色
+  boxsize = 0.3,
+  # box大小固定
+  lwd.ci = 1,
+  ci.vertices.height = 0.1,
+  ci.vertices = T,
+  # 显示区间
+  zero = 1,
+  # zero线横坐标
+  lwd.zero = 1.5,
+  # zero线宽
+  xticks = c(0.5, 1, 1.5),
+  # 横坐标刻度根据需要可随意设置
+  lwd.xaxis = 2,
+  xlab = "Hazard ratios",
+  txt_gp = fpTxtGp(
+    label = gpar(cex = 1.2),
+    # 各种字体大小设置
+    ticks = gpar(cex = 0.85),
+    xlab = gpar(cex = 1),
+    title = gpar(cex = 1.5)
+  ),
+  hrzl_lines = list(
+    "1" = gpar(lwd = 2, col = "black"),
+    # 在第一行上面画黑色实线
+    "2" = gpar(lwd = 1.5, col = "black"),
+    # 在第一行标题行下画黑色实线
+    "22" = gpar(lwd = 2, col = "black")
+  ),
+  # 在最后一行上画黑色实线
+  lineheight = unit(.5, "cm"),
+  # 固定行高
+  colgap = unit(0.3, "cm"),
+  mar = unit(rep(1.5, times = 4), "cm"),
+  new_page = F
+)
+# dev.off()
+```
+
+# select the intersection gene in protein interaction and survival analysis
+
+```{r}
+# gene_sig = Coxoutput[Coxoutput$pvalue < 0.001, ]
+
+jco_colors = pal_jco("default")(2)
+
+venn.plot_up = draw.pairwise.venn(
+  area1 = length(gene_sig$gene),
+  area2 = length(data_PPI[1:30,]$name),
+  cross.area = length(intersect(gene_sig$gene, data_PPI[1:30,]$name)),
+  category = c("COX", " PPI network"),
+  fill = jco_colors,
+  cat.cex = 1.2,  
+  cat.col = jco_colors,  
+  lty = "blank",
+  scaled = FALSE 
+)
+
+intersect(gene_sig$gene, data_PPI[1:30,]$name)
+```
