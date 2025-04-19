@@ -2,14 +2,14 @@
 title: "TCGA LUDA survival"
 author: "Kindle Zhang qz2527"
 date: "2024-12-20"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
-setwd("../Estimate")
+setwd("./data_file")
 library(tidyverse)
 library(BiocManager)
 ```
@@ -33,18 +33,21 @@ exp = read.table(
   header = T
 )
 
-# #计算免疫评分
+#计算各种评分, 先筛选共同基因，再计算
 # filterCommonGenes(input.f = "tpms01A_log2.txt",
 #                   #输入文件名
 #                   output.f = "tpms01A_log2.gct",
 #                   #输出文件名
 #                   id = "GeneSymbol")   #行名为gene symbol
+
 # estimateScore("tpms01A_log2.gct",
 #               #刚才的输出文件名
 #               "tpms01A_log2_estimate_score.txt",
 #               #新的输出文件名（即估计的结果文件）
 #               platform = "affymetrix")   #默认平台
 ```
+
+Then we can get the ImmuneScore , StromalScore, EstimateScore(Sum of I and S) and tumor purity.
 
 ```{r}
 #提取结果并整理
@@ -75,14 +78,20 @@ rownames(ESTIMATE_result) <- colnames(exp)
 ```{r survival analysis}
 #xena官网：https://xenabrowser.net/datapages/
 #下载生存信息
-setwd("TCGA-LUAD")
-setwd("Survival_data")
 library(tidyverse)
 #手动导入OS.txt取名survival
+survival = read.table(
+  "OS.txt",
+  sep = "\t",
+  row.names = 1,
+  check.names = F,
+  stringsAsFactors = F,
+  header = T
+)
 survival <- survival[,2:3]
 survival <- survival %>% rownames_to_column('sample')
-survival$name <- paste0(survival$sample,'A')#paste粘贴、连接
-table(substring(survival$name,14,16))
+survival$name <- paste0(survival$sample,'A') # paste粘贴、连接
+table(substring(survival$name,14,16)) # 519 with tumor and 120 normal samples
 rownames(survival) <- survival$name
 survival <- survival[,2:3]
 ```
@@ -96,10 +105,12 @@ tpms01A_log2 <-
     check.names = F,
     header = T
   )
-a <- intersect(colnames(tpms01A_log2), rownames(survival))
-table(substr(a,14,16))
-exp_01A <- tpms01A_log2[, a]
-surv_01A <- survival[a, ]
+patient_01A_surv <- intersect(colnames(tpms01A_log2), rownames(survival)) # all 513 are included
+table(substr(patient_01A_surv,14,16))
+
+# modify the sample order
+exp_01A <- tpms01A_log2[, patient_01A_surv]
+surv_01A <- survival[patient_01A_surv, ]
 exp_01A <- exp_01A %>% t() %>% as.data.frame()
 identical(rownames(exp_01A), rownames(surv_01A))
 exp_surv_01A <- cbind(surv_01A, exp_01A)
@@ -113,6 +124,8 @@ exp_surv_01A <- cbind(surv_01A, exp_01A)
 #   quote = F
 # )
 ```
+
+We can get a survival table with 513 samples. col is the gene expression(tpms) and the first two columns are OS and OS.time.
 
 ```{r}
 ESTIMATE_result <-
@@ -136,9 +149,9 @@ ESTIMATE_result_surv_01A <- cbind(surv_01A, ESTIMATE_result)
 # )
 ```
 
+We can get a survival table with 513 samples. col is the estimate score(get from tpms) and the first two columns are OS and OS.time.
+
 ```{r survival analysis}
-setwd("TCGA-LUAD")
-setwd("survival")
 surv <-
   read.table(
     "ESTIMATE_result_surv_01A.txt",
@@ -148,7 +161,7 @@ surv <-
     stringsAsFactors = F,
     header = T
   )
-surv$OS.time <- surv$OS.time / 365
+surv$OS.time <- surv$OS.time / 365 # transform to years
 
 #ImmuneScore
 surv$group <-
@@ -162,14 +175,14 @@ library(survival)
 fitd <- survdiff(Surv(OS.time, OS) ~ group,
                  data      = surv,
                  na.action = na.exclude)
-pValue <- 1 - pchisq(fitd$chisq, length(fitd$n) - 1)
+pValue <- 1 - pchisq(fitd$chisq, length(fitd$n) - 1) #  P = 0.01196469
 
 #2.2 拟合生存曲线
 fit <- survfit(Surv(OS.time, OS) ~ group, data = surv)
 summary(fit)
 p.lab <-
   paste0("P", ifelse(pValue < 0.001, " < 0.001", paste0(" = ", round(pValue, 3))))
-#install.packages("survminer")
+# install.packages("survminer")
 library(survminer)
 ggsurvplot(
   fit,
@@ -180,7 +193,7 @@ ggsurvplot(
   risk.table = TRUE,
   # 显示风险表
   risk.table.col = "strata",
-  palette = "jco",
+  palette = "lancet",
   # 配色采用jco
   legend.labs = c("Low", "High"),
   # 图例
@@ -201,7 +214,7 @@ ggsurvplot(
   ncensor.plot.height = 0.25,
   risk.table.y.text = FALSE
 )
-dev.off()
+
 
 #StromalScore
 surv$group <-
@@ -232,7 +245,7 @@ ggsurvplot(
   risk.table = TRUE,
   # 显示风险表
   risk.table.col = "strata",
-  palette = "jco",
+  palette = "lancet",
   # 配色采用jco
   legend.labs = c("Low", "High"),
   # 图例
@@ -253,7 +266,7 @@ ggsurvplot(
   ncensor.plot.height = 0.25,
   risk.table.y.text = FALSE
 )
-dev.off()
+
 
 #ESTIMATEScore
 surv$group <-
@@ -284,8 +297,8 @@ ggsurvplot(
   risk.table = TRUE,
   # 显示风险表
   risk.table.col = "strata",
-  palette = "jco",
-  # 配色采用jco
+  palette = "lancet",
+  # 配色采用lancet
   legend.labs = c("Low", "High"),
   # 图例
   size = 1,
