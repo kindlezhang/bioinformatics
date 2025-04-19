@@ -9,7 +9,7 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
-setwd("./data_file")
+# setwd("./data_file")
 library(tidyverse)
 library(BiocManager)
 ```
@@ -25,7 +25,7 @@ library(tidyverse)
 
 ```{r}
 exp = read.table(
-  "tpms01A_log2.txt",
+  "./data_file/tpms01A_log2.txt",
   sep = "\t",
   row.names = 1,
   check.names = F,
@@ -53,7 +53,7 @@ Then we can get the ImmuneScore , StromalScore, EstimateScore(Sum of I and S) an
 #提取结果并整理
 ESTIMATE_result <-
   read.table(
-    "tpms01A_log2_estimate_score.txt",
+    "./data_file/tpms01A_log2_estimate_score.txt",
     sep = "\t",
     row.names = 1,
     check.names = F,
@@ -75,13 +75,13 @@ rownames(ESTIMATE_result) <- colnames(exp)
 # ) 
 ```
 
-```{r survival analysis}
-#xena官网：https://xenabrowser.net/datapages/
-#下载生存信息
+```{r}
+# xena官网：https://xenabrowser.net/datapages/
+# 下载生存信息
 library(tidyverse)
 #手动导入OS.txt取名survival
 survival = read.table(
-  "OS.txt",
+  "./data_file/OS.txt",
   sep = "\t",
   row.names = 1,
   check.names = F,
@@ -99,7 +99,7 @@ survival <- survival[,2:3]
 ```{r}
 tpms01A_log2 <-
   read.table(
-    "tpms01A_log2.txt",
+    "./data_file/tpms01A_log2.txt",
     sep = "\t",
     row.names = 1,
     check.names = F,
@@ -130,7 +130,7 @@ We can get a survival table with 513 samples. col is the gene expression(tpms) a
 ```{r}
 ESTIMATE_result <-
   read.table(
-    "ESTIMATE_result.txt",
+    "./data_file/ESTIMATE_result.txt",
     sep = "\t",
     row.names = 1,
     check.names = F,
@@ -154,7 +154,7 @@ We can get a survival table with 513 samples. col is the estimate score(get from
 ```{r survival analysis}
 surv <-
   read.table(
-    "ESTIMATE_result_surv_01A.txt",
+    "./data_file/ESTIMATE_result_surv_01A.txt",
     sep = "\t",
     row.names = 1,
     check.names = F,
