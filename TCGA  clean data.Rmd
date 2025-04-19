@@ -9,10 +9,14 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
-# getwd()
-setwd("./datafile")
 library(tidyverse)
 library(BiocManager)
+```
+
+```{r}
+getwd()
+setwd("./data_file")
+getwd()
 ```
 
 ```{r}
@@ -44,15 +48,16 @@ expquery2 = GDCprepare(expquery,
                        summarizedExperiment = T)
 
 # save rda
-save(expquery2, file = "../datafile/luad.gdc_2022.rda")
+save(expquery2, file = "luad.gdc_2022.rda")
 ```
 
 ```{r}
-load("luad.gdc_2022.rda") # import
+load("luad.gdc_2022.rda") # import data
 load("gene_annotation_2022.rda") # annotation
-table(gene_annotation_2022$type) # 
+table(gene_annotation_2022$type) # 每种基因的功能下都有什么基因
 
-# col = observation row = gene
+# counts 用来做差异分析, tpms做其他
+# col = observation/样本  row = gene
 counts = expquery2@assays@data@listData[["unstranded"]] # integer
 colnames(counts) = expquery2@colData@rownames
 rownames(counts) = expquery2@rowRanges@ranges@NAMES
@@ -62,9 +67,10 @@ counts = counts |>
   as.data.frame() |>
   rownames_to_column(var = "ENSEMBL") |>
   inner_join(gene_annotation_2022, "ENSEMBL") |>
-  # .[!duplicated(.$symbol), ]
+  # .[!duplicated(.$symbol), ]  # 根据symbol去重
   distinct(symbol, .keep_all = TRUE)
 
+# method 2 to construct a counts table
 counts1 = expquery2@assays@data@listData[["unstranded"]]
 colnames(counts1) = expquery2@colData@rownames
 rownames(counts1) = expquery2@rowRanges@ranges@NAMES
@@ -75,25 +81,33 @@ counts1 = counts1[!duplicated(counts1$symbol), ]
 ```
 
 ```{r}
+# check if the two dataframes are identical
 a = c("a", "b", "a", "b", "c")
 b = c("a", "b", "b", "a", "c")
 identical(a, b) # sequence also works
 identical(colnames(counts), colnames(counts1))
-identical(rownames(counts), rownames(counts1))
+identical(counts$symbol, counts1$symbol)
+# symbol顺序是完全一致的，但是rownames(行号)不一致，不影响
+# length(intersect(rownames(counts), rownames(counts1)))
+# setdiff(rownames(counts), rownames(counts1))
 
+# R中rownames不能重复，所以提前去重
+# 不能直接变，要先变成NULL
 rownames(counts) = NULL
 counts = counts |>  column_to_rownames("symbol") 
 
 rownames(counts1) = NULL 
-counts1 = column_to_rownames(counts1,var = 'symbol')
+counts1 = column_to_rownames(counts1, var = 'symbol')
 
+# 选取控制制造蛋白的基因，mRNA
 table(counts$type)
 counts = counts[counts$type == "protein_coding", ]
 #counts = counts[counts$type == "lncRNA",]
-counts = counts[, -c(1, ncol(counts))]
+counts = counts[, -c(1, ncol(counts))] # 删除type和ENSEMBL两列
 ncol(counts)
 nrow(counts)
 
+# simplify the colnames
 colnames(counts) = substring(colnames(counts), 1, 16)
 counts = counts[, !duplicated(colnames(counts))]
 table(substring(colnames(counts), 14, 16)) # 01A 肿瘤样本 11A 正常样本
@@ -107,8 +121,11 @@ table(substring(colnames(counts01A), 14, 16))
 table(substring(colnames(counts11A), 14, 16))
 ```
 
+We can get two counts table for two groups of samples, 01A and 11A.
+With tumor and normal samples.
+
 ```{r tpms}
-# TCGA 中counts只做差异分析
+# TCGA 中counts只做差异分析 (Differential Gene Expression Analysis (DGE))
 tpms <- expquery2@assays@data@listData[["tpm_unstrand"]]
 colnames(tpms) <- expquery2@colData@rownames
 rownames(tpms) <- expquery2@rowRanges@ranges@NAMES
@@ -130,6 +147,9 @@ tpms01A <- tpms[,substring(colnames(tpms),14,16) == c("01A")]
 # 保留11A
 tpms11A <- tpms[,substring(colnames(tpms),14,16) == c("11A")]
 ```
+
+We have 19934 same genes in both counts and tpms table, with same 589 samples.
+There are 513 with tumor and 58 with normal samples.
 
 ```{r}
 identical(rownames(counts01A),rownames(counts11A))
@@ -172,6 +192,7 @@ identical(colnames(counts11A),colnames(tpms11A))
 # )
 ```
 
+# cbind and rbind should guarantee the same rows and columns.
 ```{r}
 counts <- cbind(counts01A, counts11A)
 tpms <- cbind(tpms01A, tpms11A)
@@ -192,6 +213,8 @@ tpms <- cbind(tpms01A, tpms11A)
 #   quote = F
 # )
 ```
+
+get counts and tpms table only including 01A and 11A samples, with log2 transformation.
 
 ```{r}
 range(tpms)
@@ -228,6 +251,6 @@ range(tpms11A_log2)
 #   col.names = NA,
 #   quote = F
 # )
-#表达谱整理完毕
+# 表达谱整理完毕
 ```
 
