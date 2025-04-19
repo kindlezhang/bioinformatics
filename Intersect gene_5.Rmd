@@ -1,0 +1,195 @@
+---
+title: "Intersect Gene"
+author: "Kindle Zhang qz2527"
+date: "2024-12-20"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+# setwd("./data_file")
+library(tidyverse)
+library(BiocManager)
+```
+
+# Get the intersect gene
+
+```{r}
+load("./data_file/DEG_ImmuneScore.Rda")
+DEG = as.data.frame(res)
+logFC_cutoff = 1
+type1 = (DEG$padj < 0.05) & (DEG$log2FoldChange < -logFC_cutoff)
+type2 = (DEG$padj < 0.05) & (DEG$log2FoldChange > logFC_cutoff)
+DEG$change = ifelse(type1, "DOWN", ifelse(type2, "UP", "NOT"))
+table(DEG$change)
+DEG_IMM_UP = filter(DEG, change == 'UP')
+DEG_IMM_DOWN = filter(DEG, change == 'DOWN')
+# 在免疫得分高的组相比免疫得分低的组，哪些基因up哪些基因down
+
+load("./data_file/DEG_StromalScore.Rda")
+DEG = as.data.frame(res)
+logFC_cutoff = 1
+type1 = (DEG$padj < 0.05) & (DEG$log2FoldChange < -logFC_cutoff)
+type2 = (DEG$padj < 0.05) & (DEG$log2FoldChange > logFC_cutoff)
+DEG$change = ifelse(type1, "DOWN", ifelse(type2, "UP", "NOT"))
+table(DEG$change)
+DEG_STR_UP = filter(DEG, change == 'UP')
+DEG_STR_DOWN = filter(DEG, change == 'DOWN')
+```
+
+I get DEG output groups by up and down, as well as Immune and Stromal.
+
+# plot the Venn Diagram
+
+```{r}
+# install.packages("VennDiagram")
+library(VennDiagram)
+library(ggsci)
+jco_colors = pal_jco("default")(2)
+
+venn.plot_up = draw.pairwise.venn(
+  area1 = length(rownames(DEG_IMM_UP)),
+  area2 = length(rownames(DEG_STR_UP)),
+  cross.area = length(intersect(
+    rownames(DEG_IMM_UP), rownames(DEG_STR_UP)
+  )),
+  category = c("ImmuneScore up", "StromalScore up"),
+  fill = jco_colors,
+  cat.cex = 1.2,  
+  cat.col = jco_colors,  
+  lty = "blank"  
+)
+```
+
+```{r}
+venn.plot_down = draw.pairwise.venn(
+  area1 = length(rownames(DEG_IMM_DOWN)),
+  area2 = length(rownames(DEG_STR_DOWN)),
+  cross.area = length(intersect(
+    rownames(DEG_IMM_DOWN), rownames(DEG_STR_DOWN)
+  )),
+  category = c("ImmuneScore down", "StromalScore down"),
+  fill = jco_colors,
+  cat.cex = 1.2,  
+  cat.col = jco_colors,  
+  lty = "blank"  
+)
+```
+
+#  make an Enrichment Analysis with intersection gene
+
+```{r}
+# BiocManager::install('clusterProfiler')
+# BiocManager::install('org.Hs.eg.db')
+# install.packages("igraph")
+library(igraph)
+library(org.Hs.eg.db)
+# org.Hs.eg.db包主要注释人类基因:用于不同数据库ID间的转化
+library(clusterProfiler)
+
+# use immunescore or stromalscore
+# load("./data_file/DEG_ImmuneScore.Rda")
+# DEG = as.data.frame(res)
+DEG_final_up = as.data.frame(intersect(rownames(DEG_IMM_UP), rownames(DEG_STR_UP)))
+DEG_final_down = as.data.frame(intersect(rownames(DEG_IMM_DOWN), rownames(DEG_STR_DOWN)))
+colnames(DEG_final_up) = c("SYMBOL")
+colnames(DEG_final_down) = c("SYMBOL")
+
+DEG_final = rbind(DEG_final_up, DEG_final_down)
+# write.table(
+#   DEG_final,
+#   file = "./data_file/DEG_final.txt",
+#   sep = "\t",
+#   row.names = FALSE,
+#   quote = FALSE
+# )
+
+DEG = DEG[DEG_final$SYMBOL,]
+DEG = rownames_to_column(DEG, "SYMBOL")
+
+# transform id
+genelist = bitr(DEG$SYMBOL,
+                fromType = "SYMBOL",
+                toType = "ENTREZID",
+                OrgDb = 'org.Hs.eg.db')
+DEG = inner_join(DEG, genelist, by = "SYMBOL")
+# 1.24% of input gene IDs are fail to map...
+nrow(DEG)
+```
+
+## GO function
+
+基因参与了哪些功能
+
+```{r}
+####GO####
+# ego = enrichGO(
+#   gene = DEG$ENTREZID,
+#   OrgDb = org.Hs.eg.db,
+#   # get all functions
+#   ont = "all",
+#   pAdjustMethod = "BH",
+#   minGSSize = 1,
+#   pvalueCutoff = 0.05,
+#   qvalueCutoff = 0.05,
+#   readable = TRUE
+# )
+
+# ego_res = ego@result
+
+# 看出这些差异基因富集在哪些功能里
+# ontology分为三个层面BP, CC, MF
+# save(ego, ego_res, file = "./data_file/GO_DEG_final.Rda")
+```
+
+## KEGG function  
+
+基因参与了哪些通路
+
+```{r}
+####KEGG####
+# kk = enrichKEGG(
+#   gene         = DEG$ENTREZID,
+#   organism     = 'hsa', # human
+#   pvalueCutoff = 0.1,
+#   qvalueCutoff = 0.1
+# )
+
+# kk_res = kk@result
+
+# save(kk, kk_res, file = "./data_file/KEGG_DEG_final.Rda")
+```
+
+# plot the gride
+
+```{r}
+# install.packages("ggnewscale")
+library(ggnewscale)
+List = DEG$log2FoldChange
+names(List)= DEG$ENTREZID
+head(List)
+List = sort(List, decreasing = T)
+# 将所有的DEG的基因按照logFC排序
+
+load("./data_file/GO_DEG_final.Rda")
+load("./data_file/KEGG_DEG_final.Rda")
+
+#GO
+cnetplot(ego,
+         foldChange = List,
+         showCategory = 5,
+         circular = TRUE,
+         colorEdge = TRUE)
+```
+
+```{r}
+#KEGG
+cnetplot(kk,
+         foldChange = List,
+         circular = TRUE,
+         colorEdge = TRUE)
+```
