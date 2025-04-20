@@ -109,29 +109,72 @@ clinical.ESTIMATE_result01A <- cbind(clinical01A, ESTIMATE_result)
 We can get a data combined with estimate score and clinical data. 
 
 ```{r}
-clinical.ESTIMATE_result01A |>
-  filter(!is.na(ajcc_pathologic_stage)) |> 
-  ggplot(aes(x = ajcc_pathologic_stage,
-             y = ImmuneScore,
-             fill = ajcc_pathologic_stage)) +
-  geom_boxplot() +
-  labs(title = "Stage",
-       y = "Immune Score") +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
-    legend.position = NULL
-  )
+# clinical.ESTIMATE_result01A |>
+#   filter(!is.na(ajcc_pathologic_stage)) |> 
+#   ggplot(aes(x = ajcc_pathologic_stage,
+#              y = ImmuneScore,
+#              fill = ajcc_pathologic_stage)) +
+#   geom_boxplot() +
+#   labs(title = "Stage",
+#        y = "Immune Score") +
+#   theme_minimal() +
+#   theme(
+#     plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+#   )
 ```
 
 calculate p-value
 
 ```{r}
-test = 
-clinical.ESTIMATE_result01A |>
-  filter(!is.na(ajcc_pathologic_stage)) |>
-  mutate(ajcc_pathologic_stage = as.factor(ajcc_pathologic_stage)) %>%  
-  kruskal.test(ImmuneScore ~ ajcc_pathologic_stage)
+# test = 
+# clinical.ESTIMATE_result01A |>
+#   filter(!is.na(ajcc_pathologic_stage)) |>
+#   mutate(ajcc_pathologic_stage = as.factor(ajcc_pathologic_stage)) 
+ 
+# kruskal.test(ImmuneScore ~ ajcc_pathologic_stage, data = test)
+```
+
+## use function to plot boxplot and calculate p-value
+
+```{r}
+plot_boxplot_by_group <- function(data, x, y) {
+  # 筛选数据
+  filtered_data <- data %>%
+    filter(!is.na(.data[[x]])) %>%
+    mutate(factor_var = as.factor(.data[[x]]))
   
-test
+  # 画图
+  p <- ggplot(filtered_data,
+              aes(x = factor_var, y = .data[[y]], fill = factor_var)) +
+    geom_boxplot() +
+    labs(
+      title = paste0(y, " change by ", sub(".*_", "" , x)),
+      y = y,
+      x = x
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      legend.position = "none"
+    )
+  
+  # Kruskal-Wallis 检验
+  k_result <- kruskal.test(filtered_data[[y]] ~ filtered_data$factor_var)
+
+  # 返回图和检验结果
+  return(list(plot = p, test = k_result))
+}
+```
+
+```{r}
+library(purrr)
+
+x_vars <- colnames(clinical.ESTIMATE_result01A)[3:6]
+y_vars <- colnames(clinical.ESTIMATE_result01A)[7:9]
+
+var_combinations <- expand.grid(x = x_vars, y = y_vars, stringsAsFactors = FALSE)
+
+pmap(var_combinations, function(x, y) {
+  plot_boxplot_by_group(data = clinical.ESTIMATE_result01A, x = x, y = y)
+})
 ```
