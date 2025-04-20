@@ -194,5 +194,45 @@ clinical_BTK =
 ```
 
 ```{r}
+plot_boxplot_by_group <- function(data, x, y) {
+  # 筛选数据
+  filtered_data <- data %>%
+    filter(!is.na(.data[[x]])) %>%
+    mutate(factor_var = as.factor(.data[[x]]))
+  
+  # 画图
+  p <- ggplot(filtered_data,
+              aes(x = factor_var, y = .data[[y]], fill = factor_var)) +
+    geom_boxplot() +
+    labs(
+      title = paste0("BTK expression change by ", sub(".*_", "" , x)),
+      y = "BTK expression",
+      x = x
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      legend.position = "none"
+    )
+  
+  # Kruskal-Wallis 检验
+  k_result <- kruskal.test(filtered_data[[y]] ~ filtered_data$factor_var)
 
+  # 返回图和检验结果
+  return(list(plot = p, test = k_result))
+}
 ```
+
+```{r}
+library(purrr)
+
+x_vars <- colnames(clinical_BTK)[3:6]
+y_vars <- colnames(clinical_BTK)[7]
+
+var_combinations <- expand.grid(x = x_vars, y = y_vars, stringsAsFactors = FALSE)
+
+pmap(var_combinations, function(x, y) {
+  plot_boxplot_by_group(data = clinical_BTK, x = x, y = y)
+})
+```
+
