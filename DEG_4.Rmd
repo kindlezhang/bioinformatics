@@ -62,7 +62,7 @@ if (identical(colnames(counts_01A), colnames(estimate))) {
   cat("colnames are different")
 }
 
-# prepare to make a difference analysis
+# prepare to make a difference *analysis
 dds <- DESeqDataSetFromMatrix(
   countData = counts_01A,
   colData = conditions,

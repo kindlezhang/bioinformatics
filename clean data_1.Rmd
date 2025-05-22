@@ -149,7 +149,7 @@ tpms11A <- tpms[,substring(colnames(tpms),14,16) == c("11A")]
 ```
 
 We have 19934 same genes in both counts and tpms table, with same 589 samples.
-There are 513 with tumor and 58 with normal samples.
+There are 513 with tumor and 58 with normal samples. 
 
 ```{r}
 identical(rownames(counts01A),rownames(counts11A))
